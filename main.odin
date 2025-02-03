@@ -50,40 +50,59 @@ Window_Enum_Proc :: proc "system" (window_handle:win32.HWND, window_enum_param:w
 	fmt.println("============")
 
 	window_text:win32.LPWSTR
-	window_text_max_count:win32.INT = 30
-	win32.GetWindowTextW(window_handle, window_text, window_text_max_count)
-	result_window_text, _ := win32.wstring_to_utf8(window_text, -1, context.allocator)
-	
+	// window_text:^u16
+	window_text_max_count:win32.INT = 1024
 
-	result:= win32.TRUE
-	fmt.println(counter)
-	counter += 1
-	return win32.BOOL(result)
+
+
+	window_result := win32.GetWindowTextW(window_handle, window_text, window_text_max_count)
+
+	fmt.println(window_result)
+
+	// result_window_text, _ := win32.wstring_to_utf8(window_text, -1, context.allocator)
+	// fmt.println(window_text)
+
+
+
+	if window_result == 0 {
+		// Current error code returned is 87: invalid parameter
+
+		error := win32.GetLastError()
+		
+		fmt.printf("Error: %v\n", error)
+	}
+
+	// result:= win32.TRUE
+	// fmt.println(counter)
+	// counter += 1
+	return win32.BOOL(true)
 }
 	
 main :: proc () {
 
-
-	// desktop_rectangle:win32.RECT
-	// desktop_handle:win32.HWND = win32.GetDesktopWindow() // Get Desktop Handle
+	fmt.println("Hello World")
 
 
-	// win32.GetWindowRect(desktop_handle, &desktop_rectangle)	
+	desktop_rectangle:win32.RECT
+	desktop_handle:win32.HWND = win32.GetDesktopWindow() // Get Desktop Handle
 
-	// fmt.println(desktop_rectangle)
+
+	win32.GetWindowRect(desktop_handle, &desktop_rectangle)	
+
+	fmt.println(desktop_rectangle)
 	// fmt.println(desktop_rectangle.right / 2)	
 	// fmt.println(desktop_rectangle.bottom)
 
 
 
-	// windows_enum_param:win32.LPARAM
-	// win32.EnumWindows(Window_Enum_Proc, windows_enum_param)
+	windows_enum_param:win32.LPARAM
+	win32.EnumWindows(Window_Enum_Proc, windows_enum_param)
 	
 
 	// Main Window Tiling functionality. Commented out for testing with desktop stuff. Uncomment once testing is done
-	wmdll:= win32.LoadLibraryW(raw_data(win32.utf8_to_utf16("wm_dll"))) // load wm_dll
-	shellProc:= cast(win32.HOOKPROC)win32.GetProcAddress(wmdll, "ShellProc") // wmdll needs to be hmodule here 
-	hookHandle = win32.SetWindowsHookExW(win32.WH_SHELL, shellProc, cast(win32.HANDLE)wmdll, 0) // but needs to be handle here
+	// wmdll:= win32.LoadLibraryW(raw_data(win32.utf8_to_utf16("wm_dll"))) // load wm_dll
+	// shellProc:= cast(win32.HOOKPROC)win32.GetProcAddress(wmdll, "ShellProc") // wmdll needs to be hmodule here 
+	// hookHandle = win32.SetWindowsHookExW(win32.WH_SHELL, shellProc, cast(win32.HANDLE)wmdll, 0) // but needs to be handle here
 
 	fmt.println("Tiling as Started. Press CTRL + C on this window to stop it")
 	libc.signal(libc.SIGINT, exit_callback)
