@@ -83,20 +83,31 @@ exit_callback :: proc "cdecl" (signal:i32) {
 // The application defined callback function for win32.EnumWindows
 // Odin docs have this as "stdcall" calling convention
 // -> Takes paramenter types win32.HWND, int)
-// window_handle is win32.HWND, 
+// window_handle is win32.HWND,
 Window_Enum_Proc :: proc "stdcall" (window_handle:win32.HWND, window_enum_param:win32.LPARAM) -> win32.BOOL {
 	context = runtime.default_context()
 	length := win32.GetWindowTextLengthW(window_handle)
 	if length > 0 && win32.IsWindowVisible(window_handle) {
-		buffer := make([]win32.WCHAR, length)
-		defer delete(buffer)
-		result:win32.wstring = &buffer[0]
-		win32.GetWindowTextW(window_handle, result, length + 1)
-		name, _ := win32.wstring_to_utf8(result, int(length + 1))
+
+		// Check if a window is cloaked -- A second type of way a window can be hidden - different from visible attribuate
+		// But for a more modern windows: https://devblogs.microsoft.com/oldnewthing/20200302-00/?p=103507
+		// The blog post above explains why cloaking exists
+		is_cloaked:win32.BOOL = win32.FALSE
+		// paramenter 3 -> is 14 witch is DWMA_CLOAKED enum value (dwmapi.odin)
+		handle_result:win32.HRESULT = win32.DwmGetWindowAttribute(window_handle, 14, &is_cloaked, size_of(is_cloaked))
+
+		if !is_cloaked {
+			buffer := make([]win32.WCHAR, length)
+			defer delete(buffer)
+			result:win32.wstring = &buffer[0]
+			win32.GetWindowTextW(window_handle, result, length + 1)
+			name, _ := win32.wstring_to_utf8(result, int(length + 1))
 		
-		window_info:WindowInfo = {window_handle, name}
-		append(&windows, window_info)
-		append(&window_handles, window_handle)
+			window_info:WindowInfo = {window_handle, name}
+			append(&windows, window_info)
+			append(&window_handles, window_handle)
+		
+		}
 				
 	}
 	return win32.TRUE
@@ -115,98 +126,56 @@ get_window_zones :: proc (amount_of_windows:int, padding:int = 5) {
 
 	current_location:string = "top"
 
-	// starts at 1 and not 0 as improper amount of zone
-	// will be made if starts at 0
+	// starts at 0 but amount_of_windows is subtracted by 1
+	// This makes sure the loop works, iterates the correct number, and doesn't go out of bounds
 	for i in 1..=amount_of_windows {
-		// fmt.println(i)
+		if i > 2 {
+			if i == 3 {
+				current_height = current_height / (i32(amount_of_windows)- i32(2))
+				window_zones[1].height = current_height
+			}
 
-		
-	// WindowZone :: struct {
-	//  handle:win32.HWND
-	// 	x:win32.INT,
-	// 	y:win32.INT,
-	// 	width:win32.INT,
-	// 	height:win32.INT,
-	// 	repaint:win32.BOOL,
-	// }
+			current_y += current_height
+			
+		}
 		window_zone:WindowZone = {
-			handle = window_handles[i],
+			handle = window_handles[i - 1],
 			x = current_x,
 			y = current_y,
 			width = current_width,
 			height = current_height,
 			repaint = win32.FALSE,
 		}
+
+		fmt.println(window_zone)
 		append(&window_zones, window_zone)
-		
-		if i > 2 && amount_of_windows % i == 0{
-			current_width = current_width / 2
-		}
-		if i > 2 && amount_of_windows % i != 0{
-			current_height = current_height / 2
-				
-		}
-		if amount_of_windows % i == 0 {
-			current_x = current_width
-		}
-		if amount_of_windows % i != 0 {
-			current_y = current_height / 2
-			window_zones[i-1].height = window_zones[i-1].height / 2
-		}
 
-
+		current_x = current_width
 	}
 }	
 main :: proc () {
 
 	// need to clear/delete dynamic arrays -- have not done that yet
 	
-
-	// desktop_rectangle:win32.RECT
-	// desktop_handle:win32.HWND = win32.GetDesktopWindow() // Get Desktop Handle
-
-
-	// win32.GetWindowRect(desktop_handle, &desktop_rectangle)	
-
-	// fmt.println(desktop_rectangle)
-	// fmt.println(desktop_rectangle.right / 2)	
-	// fmt.println(desktop_rectangle.bottom)
-
-
-	// WindowZone :: struct {
-	//  handle:win32.HWND
-	// 	x:win32.INT,
-	// 	y:win32.INT,
-	// 	width:win32.INT,
-	// 	height:win32.INT,
-	// 	repaint:win32.BOOL,
-	// }
-
-	// windows_enum_param:win32.LPARAM
 	win32.EnumWindows(Window_Enum_Proc, 0)
-	get_window_zones(amount_of_windows = 7 , padding = 0 )
+
+
+	// fmt.println(typeid_of(type_of(len(windows))))
+	get_window_zones(amount_of_windows = len(windows) , padding = 0 )
 
 	
-	for zone in window_zones {
-		fmt.println(zone)
+	for zone, zone_index in window_zones {
+		fmt.printf("%v |>\n %v\n", windows[zone_index].window_name,zone)
 		win32.MoveWindow(zone.handle, zone.x, zone.y, zone.width, zone.height, zone.repaint)
 	}
 
-
-	
-	
-	// for window in windows {
-	// 	fmt.println(window.window_name)
-	// }
-
-	
 	// OLD CODE: KEPT IN FOR THE TIME BEING
 	// Main Window Tiling functionality. Commented out for testing with desktop stuff. Uncomment once testing is done
 	// wmdll:= win32.LoadLibraryW(raw_data(win32.utf8_to_utf16("wm_dll"))) // load wm_dll
 	// shellProc:= cast(win32.HOOKPROC)win32.GetProcAddress(wmdll, "ShellProc") // wmdll needs to be hmodule here 
 	// hookHandle = win32.SetWindowsHookExW(win32.WH_SHELL, shellProc, cast(win32.HANDLE)wmdll, 0) // but needs to be handle here
 
-	fmt.println("Tiling as Started. Press CTRL + C on this window to stop it")
+	fmt.println("\nTiling as Started. Press CTRL + C on this window to stop it")
 	libc.signal(libc.SIGINT, exit_callback)
 	for {
 		
