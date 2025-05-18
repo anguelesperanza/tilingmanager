@@ -1,11 +1,17 @@
 package main
 
-import win32 "core:sys/windows"
+import win "core:sys/windows"
 import "core:c"
 
+foreign import user32 "system:User32.lib"
+@(default_calling_convention="system")
+
+foreign user32 {
+	TileWindows :: proc(hwndParent:win.HWND, wHow:win.UINT, lpRect:^win.RECT, cKids:win.UINT, lpKids:^win.HWND) -> win.DWORD ---
+}
 
 @(export)
-ShellProc :: proc "stdcall" (code:c.int, wParam:win32.WPARAM, lParam:win32.LPARAM) -> win32.LRESULT{
+shell_proc:: proc "stdcall" (code:c.int, wParam:win.WPARAM, lParam:win.LPARAM) -> win.LRESULT{
 	if code == 1 || code == 2 {
 		// parameters:
 		// hwndParant -> handle for window parant. If nil, then desktop is used as parent window
@@ -17,8 +23,8 @@ ShellProc :: proc "stdcall" (code:c.int, wParam:win32.WPARAM, lParam:win32.LPARA
 		//      -> ignored if lpKids is null
 		// lpKids -> array of child windows (of the parent window) to arrange
 		//      -> if nil, all hcild windows of the parent window will be arranged
-		win32.TileWindows(nil, 0, nil, 0, nil)
+		TileWindows(nil, 0, nil, 0, nil)
 	}
 
-	return win32.CallNextHookEx(nil, code, wParam, lParam)
+	return win.CallNextHookEx(hhk = nil, nCode = code, wParam = wParam, lParam = lParam)
 }
